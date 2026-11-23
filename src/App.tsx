@@ -451,6 +451,71 @@ export default function App() {
     }
   }, [isAdmin, activeTab]);
 
+  useEffect(() => {
+    if (activeTab !== 'dashboard' && mobileMenuOpen) {
+      setMobileMenuOpen(false);
+    }
+  }, [activeTab, mobileMenuOpen]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const scrollY = window.scrollY;
+    const html = document.documentElement;
+    const body = document.body;
+
+    const prevHtmlOverflow = html.style.overflow;
+    const prevHtmlOverscroll = html.style.overscrollBehavior;
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyPosition = body.style.position;
+    const prevBodyTop = body.style.top;
+    const prevBodyLeft = body.style.left;
+    const prevBodyRight = body.style.right;
+    const prevBodyWidth = body.style.width;
+    const prevBodyOverscroll = body.style.overscrollBehavior;
+
+    html.style.overflow = 'hidden';
+    html.style.overscrollBehavior = 'none';
+    body.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+    body.style.overscrollBehavior = 'none';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    const mediaQuery = window.matchMedia('(min-width: 1024px)');
+    const handleViewportChange = (e: MediaQueryListEvent) => {
+      if (e.matches) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    mediaQuery.addEventListener('change', handleViewportChange);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      mediaQuery.removeEventListener('change', handleViewportChange);
+      html.style.overflow = prevHtmlOverflow;
+      html.style.overscrollBehavior = prevHtmlOverscroll;
+      body.style.overflow = prevBodyOverflow;
+      body.style.position = prevBodyPosition;
+      body.style.top = prevBodyTop;
+      body.style.left = prevBodyLeft;
+      body.style.right = prevBodyRight;
+      body.style.width = prevBodyWidth;
+      body.style.overscrollBehavior = prevBodyOverscroll;
+      window.scrollTo(0, scrollY);
+    };
+  }, [mobileMenuOpen]);
+
   const showNotice = (msg: string) => {
     setNotice(msg);
     window.setTimeout(() => {
@@ -856,31 +921,31 @@ export default function App() {
     : NAV_TABS.filter((tab) => tab.id !== 'personnel' && tab.id !== 'backup');
 
   const sidebarContent = (
-    <div className="flex h-full flex-col justify-between bg-white border-r border-[#e3dbcc] text-slate-700 dark:bg-[#17130f] dark:border-[#2c241b] px-3.5 py-4 dark:text-[#d6cec2]">
-      <div className="space-y-5">
-        <div className="flex items-center justify-between px-1.5">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <img
-              src="/assets/aistudio/Logo_Tri_Brata__1___1__7bf85ea6.png"
-              alt="Logo Tribrata Polri"
-              className="w-7 h-7 object-contain shrink-0 select-none"
-              draggable={false}
-            />
-            <span className="text-xs font-bold tracking-wide uppercase text-slate-900 dark:text-[#f3ede4] whitespace-nowrap truncate">
-              POLSEK SEMARANG SELATAN
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(false)}
-            className="lg:hidden p-1.5 text-slate-500 hover:text-slate-900 dark:text-[#9b8f80] dark:hover:text-[#f3ede4] rounded-md"
-            aria-label="Tutup menu"
-          >
-            <X className="w-4 h-4" />
-          </button>
+    <div className="flex h-full min-h-0 flex-col bg-white border-r border-[#e3dbcc] text-slate-700 dark:bg-[#17130f] dark:border-[#2c241b] dark:text-[#d6cec2]">
+      <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3 border-b border-[#e3dbcc]/70 dark:border-[#2c241b]">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <img
+            src="/assets/aistudio/Logo_Tri_Brata__1___1__7bf85ea6.png"
+            alt="Logo Tribrata Polri"
+            className="w-7 h-7 object-contain shrink-0 select-none"
+            draggable={false}
+          />
+          <span className="text-xs font-bold tracking-wide uppercase text-slate-900 dark:text-[#f3ede4] whitespace-nowrap truncate">
+            POLSEK SEMARANG SELATAN
+          </span>
         </div>
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(false)}
+          className="lg:hidden p-1.5 text-slate-500 hover:text-slate-900 dark:text-[#9b8f80] dark:hover:text-[#f3ede4] rounded-md"
+          aria-label="Tutup menu"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
 
-        <nav className="space-y-1" aria-label="Menu utama">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-3.5 py-4 flex flex-col justify-between gap-5">
+        <nav className="space-y-1 shrink-0" aria-label="Menu utama">
           {visibleNavTabs.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -905,74 +970,73 @@ export default function App() {
           })}
         </nav>
 
-      </div>
-
-      <div className="border-t border-[#e3dbcc] dark:border-[#2c241b] pt-4 space-y-3 px-1">
-        <div className="space-y-1 text-xs text-slate-500 dark:text-[#9b8f80]">
-          <div className="font-semibold text-slate-900 dark:text-[#f3ede4] truncate">
-            {header.line3}
-          </div>
-          <div className="flex items-center justify-between">
-            <span>Total Personel</span>
-            <span className="font-mono tabular-nums font-medium text-[#9a6b24] dark:text-[#dfb365]">
-              {personnel.length}
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-[#e3dbcc] bg-[#f8f6f1] dark:border-[#32291d] dark:bg-[#13100c] p-2.5 space-y-2">
-          <div className="min-w-0">
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="text-xs font-semibold text-slate-900 dark:text-[#f3ede4] truncate">
-                {session.displayName}
-              </div>
-              <span
-                className={`px-1.5 py-0.5 text-[10px] font-bold rounded border shrink-0 ${
-                  isAdmin
-                    ? 'bg-amber-50 border-amber-300 text-amber-900 dark:bg-[#2a2114] dark:border-[#8d6b38] dark:text-[#ecc478]'
-                    : 'bg-sky-50 border-sky-300 text-sky-800 dark:bg-sky-950/60 dark:border-sky-700/60 dark:text-sky-300'
-                }`}
-              >
-                {isAdmin ? 'ADMIN' : 'USER'}
+        <div className="border-t border-[#e3dbcc] dark:border-[#2c241b] pt-4 space-y-3 px-1 shrink-0">
+          <div className="space-y-1 text-xs text-slate-500 dark:text-[#9b8f80]">
+            <div className="font-semibold text-slate-900 dark:text-[#f3ede4] truncate">
+              {header.line3}
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Total Personel</span>
+              <span className="font-mono tabular-nums font-medium text-[#9a6b24] dark:text-[#dfb365]">
+                {personnel.length}
               </span>
             </div>
-            <div className="text-[11px] text-slate-500 dark:text-[#9b8f80] truncate">
-              @{session.username} · Mode Offline
+          </div>
+
+          <div className="rounded-lg border border-[#e3dbcc] bg-[#f8f6f1] dark:border-[#32291d] dark:bg-[#13100c] p-2.5 space-y-2">
+            <div className="min-w-0">
+              <div className="flex items-center justify-between gap-1.5">
+                <div className="text-xs font-semibold text-slate-900 dark:text-[#f3ede4] truncate">
+                  {session.displayName}
+                </div>
+                <span
+                  className={`px-1.5 py-0.5 text-[10px] font-bold rounded border shrink-0 ${
+                    isAdmin
+                      ? 'bg-amber-50 border-amber-300 text-amber-900 dark:bg-[#2a2114] dark:border-[#8d6b38] dark:text-[#ecc478]'
+                      : 'bg-sky-50 border-sky-300 text-sky-800 dark:bg-sky-950/60 dark:border-sky-700/60 dark:text-sky-300'
+                  }`}
+                >
+                  {isAdmin ? 'ADMIN' : 'USER'}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-[#9b8f80] truncate">
+                @{session.username} · Mode Offline
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountModalOpen(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="inline-flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-medium text-slate-700 bg-white border border-[#ddd4c4] hover:border-[#b37b24] dark:text-[#e6dfd3] dark:bg-[#1f1912] dark:border-[#3a2f20] dark:hover:border-[#8d6b38] rounded-md transition-colors whitespace-nowrap"
+              >
+                <KeyRound className="w-3 h-3 shrink-0 text-[#9a6b24] dark:text-[#dfb365]" />
+                <span>{isAdmin ? 'Kelola Akun' : 'Akun'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="inline-flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-medium text-red-700 bg-white border border-[#ddd4c4] hover:bg-red-50 hover:border-red-300 dark:text-red-300 dark:bg-[#1f1912] dark:border-[#3a2f20] dark:hover:bg-red-950/60 dark:hover:border-red-500/40 rounded-md transition-colors whitespace-nowrap"
+              >
+                <LogOut className="w-3 h-3 shrink-0" />
+                <span>Keluar</span>
+              </button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                setAccountModalOpen(true);
-                setMobileMenuOpen(false);
-              }}
-              className="inline-flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-medium text-slate-700 bg-white border border-[#ddd4c4] hover:border-[#b37b24] dark:text-[#e6dfd3] dark:bg-[#1f1912] dark:border-[#3a2f20] dark:hover:border-[#8d6b38] rounded-md transition-colors whitespace-nowrap"
-            >
-              <KeyRound className="w-3 h-3 shrink-0 text-[#9a6b24] dark:text-[#dfb365]" />
-              <span>{isAdmin ? 'Kelola Akun' : 'Akun'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-medium text-red-700 bg-white border border-[#ddd4c4] hover:bg-red-50 hover:border-red-300 dark:text-red-300 dark:bg-[#1f1912] dark:border-[#3a2f20] dark:hover:bg-red-950/60 dark:hover:border-red-500/40 rounded-md transition-colors whitespace-nowrap"
-            >
-              <LogOut className="w-3 h-3 shrink-0" />
-              <span>Keluar</span>
-            </button>
-          </div>
-        </div>
 
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={handleResetToBaseline}
-            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-[#f8f6f1] border border-[#ddd4c4] hover:border-[#b37b24] hover:text-slate-900 dark:text-[#b8aa97] dark:bg-[#1d1812] dark:border-[#32291d] dark:hover:border-[#6e542c] dark:hover:text-[#f3ede4] rounded-lg transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset Jadwal</span>
-          </button>
-        )}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={handleResetToBaseline}
+              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-[#f8f6f1] border border-[#ddd4c4] hover:border-[#b37b24] hover:text-slate-900 dark:text-[#b8aa97] dark:bg-[#1d1812] dark:border-[#32291d] dark:hover:border-[#6e542c] dark:hover:text-[#f3ede4] rounded-lg transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Jadwal</span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1360,13 +1424,18 @@ export default function App() {
 
         {/* Mobile Expanded Drawer */}
         {mobileMenuOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden print:hidden flex">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu navigasi"
+            className="fixed inset-0 z-50 lg:hidden print:hidden flex overscroll-none"
+          >
             <div
-              className="fixed inset-0 bg-black/50 dark:bg-black/65"
+              className="fixed inset-0 bg-black/50 dark:bg-black/65 touch-none overscroll-none"
               onClick={() => setMobileMenuOpen(false)}
               aria-hidden="true"
             />
-            <div className="relative w-72 max-w-[85vw] h-full z-10">
+            <div className="relative w-72 max-w-[85vw] h-full min-h-0 overflow-hidden z-10">
               {sidebarContent}
             </div>
           </div>
