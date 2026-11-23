@@ -26,8 +26,8 @@ export default defineConfig(() => {
         ],
         manifest: {
           id: '/',
-          name: 'SIUM',
-          short_name: 'SIUM',
+          name: 'sium_selatan',
+          short_name: 'sium_selatan',
           description:
             'Aplikasi SIUM pembuat surat dinas dan pengelola jadwal piket harian yang berjalan 100% offline.',
           theme_color: '#17130f',

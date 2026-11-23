@@ -1,5 +1,5 @@
 {
-  "name": "Remix SIUM SMG SELATAN offline",
+  "name": "sium_selatan",
   "description": "Aplikasi pembuat Surat Dinas dan pengelola jadwal piket harian yang adil, interaktif, siap cetak, dan mudah dibagikan ke WhatsApp.",
   "requestFramePermissions": [],
   "majorCapabilities": [

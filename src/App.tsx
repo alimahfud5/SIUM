@@ -866,8 +866,8 @@ export default function App() {
               className="w-7 h-7 object-contain shrink-0 select-none"
               draggable={false}
             />
-            <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-[#f3ede4] whitespace-nowrap truncate">
-              Kuat Pers &amp; Piket
+            <span className="text-xs font-bold tracking-wide uppercase text-slate-900 dark:text-[#f3ede4] whitespace-nowrap truncate">
+              POLSEK SEMARANG SELATAN
             </span>
           </div>
           <button
