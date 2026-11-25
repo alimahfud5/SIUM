@@ -1,3 +1,5 @@
+import { resolvePublicAsset } from '../utils/publicAsset';
+
 interface PolriCrestSvgProps {
   className?: string;
 }
@@ -5,7 +7,7 @@ interface PolriCrestSvgProps {
 export function PolriCrestSvg({ className = 'w-16 h-16' }: PolriCrestSvgProps) {
   return (
     <img
-      src="/pwa-512x512.png"
+      src={resolvePublicAsset('pwa-512x512.png')}
       alt="Logo Setum Polri"
       className={`${className} object-contain select-none`}
       draggable={false}

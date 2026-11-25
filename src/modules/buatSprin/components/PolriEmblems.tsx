@@ -1,5 +1,6 @@
 import React from 'react';
 import { DEFAULT_STAMP_IMAGE_URL } from '../data/defaultData';
+import { resolvePublicAsset } from '../../../utils/publicAsset';
 
 /**
  * Dashboard Header Logo — Golden Tribrata Polri Emblem (/assets/aistudio/Logo_Tri_Brata__1___1__7bf85ea6.png)
@@ -10,7 +11,7 @@ export const QuickWinsEmblem: React.FC<{ className?: string }> = ({ className = 
   if (!imgFailed) {
     return (
       <img
-        src="/assets/aistudio/Logo_Tri_Brata__1___1__7bf85ea6.png"
+        src={resolvePublicAsset('assets/aistudio/Logo_Tri_Brata__1___1__7bf85ea6.png')}
         alt="Logo Tribrata Polri"
         referrerPolicy="no-referrer"
         onError={() => setImgFailed(true)}
@@ -47,7 +48,7 @@ export const TribrataPrintEmblem: React.FC<{ className?: string }> = ({ classNam
   if (!imgFailed) {
     return (
       <img
-        src="/assets/aistudio/tb__1__e5e5aec3.png"
+        src={resolvePublicAsset('assets/aistudio/tb__1__e5e5aec3.png')}
         alt="Logo Tribrata Polri"
         referrerPolicy="no-referrer"
         onError={() => setImgFailed(true)}
@@ -296,7 +297,7 @@ export const PolsekStampAndSignature: React.FC<{
   const sigY = config?.signatureOffsetYMm ?? 14;
   const sigMultiply = config?.signatureMultiplyBlend ?? true;
 
-  const stampImgSrc = config?.stampImageDataUrl || DEFAULT_STAMP_IMAGE_URL;
+  const stampImgSrc = resolvePublicAsset(config?.stampImageDataUrl || DEFAULT_STAMP_IMAGE_URL);
   const [stampImgFailed, setStampImgFailed] = React.useState(false);
 
   React.useEffect(() => {

@@ -4,10 +4,19 @@ import path from 'path';
 import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
 
+function normalizeBasePath(raw?: string): string {
+  const trimmed = (raw || '/').trim();
+  if (!trimmed || trimmed === '/') return '/';
+  const withLeading = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return withLeading.endsWith('/') ? withLeading : `${withLeading}/`;
+}
+
 export default defineConfig(() => {
   const hmrEnabled = process.env.DISABLE_HMR !== 'true';
+  const basePath = normalizeBasePath(process.env.VITE_BASE_PATH);
 
   return {
+    base: basePath,
     plugins: [
       react(),
       tailwindcss(),
@@ -25,7 +34,7 @@ export default defineConfig(() => {
           'assets/aistudio/tb__1__e5e5aec3.png',
         ],
         manifest: {
-          id: '/',
+          id: basePath,
           name: 'sium_selatan',
           short_name: 'sium_selatan',
           description:
@@ -33,23 +42,23 @@ export default defineConfig(() => {
           theme_color: '#17130f',
           background_color: '#17130f',
           display: 'standalone',
-          start_url: '/',
-          scope: '/',
+          start_url: basePath,
+          scope: basePath,
           icons: [
             {
-              src: '/pwa-192x192.png',
+              src: `${basePath}pwa-192x192.png`,
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-512x512.png',
+              src: `${basePath}pwa-512x512.png`,
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-maskable-512x512.png',
+              src: `${basePath}pwa-maskable-512x512.png`,
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
@@ -59,7 +68,7 @@ export default defineConfig(() => {
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
-          navigateFallback: '/index.html',
+          navigateFallback: `${basePath}index.html`,
           navigateFallbackDenylist: [/^\/\.well-known\//, /^\/__\//],
           cleanupOutdatedCaches: true,
         },
@@ -79,7 +88,7 @@ export default defineConfig(() => {
             }
             return html.replace(
               /<script id="vite-plugin-pwa:register-dev-sw"[\s\S]*?<\/script>/,
-              `<script id="vite-plugin-pwa:register-dev-sw" type="module">if('serviceWorker' in navigator){navigator.serviceWorker.register('/dev-sw.js?dev-sw',{scope:'/',type:'module'}).catch(()=>{});}</script>`
+              `<script id="vite-plugin-pwa:register-dev-sw" type="module">if('serviceWorker' in navigator){navigator.serviceWorker.register('${basePath}dev-sw.js?dev-sw',{scope:'${basePath}',type:'module'}).catch(()=>{});}</script>`
             );
           },
         },

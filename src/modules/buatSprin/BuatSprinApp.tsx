@@ -42,6 +42,7 @@ import {
   SprinDocument,
   SprinTemplateItem,
 } from './types/sprin';
+import { resolvePublicAsset } from '../../utils/publicAsset';
 import {
   PawasAnchor,
   Personnel,
@@ -94,7 +95,9 @@ function normalizeDoc(doc: SprinDocument): SprinDocument {
     stampConfig: {
       ...DEFAULT_STAMP_CONFIG,
       ...(doc.stampConfig || {}),
-      stampImageDataUrl: doc.stampConfig?.stampImageDataUrl || DEFAULT_STAMP_IMAGE_URL,
+      stampImageDataUrl: resolvePublicAsset(
+        doc.stampConfig?.stampImageDataUrl || DEFAULT_STAMP_IMAGE_URL
+      ),
     },
   };
 }

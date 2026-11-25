@@ -6,6 +6,7 @@ import {
   SprinTemplateItem,
   StampSignatureConfig,
 } from '../types/sprin';
+import { resolvePublicAsset } from '../../../utils/publicAsset';
 
 export function getSprinContinuationHeaderTitle(
   doc: Pick<SprinDocument, 'lampiranHeaderTitle' | 'sprinHeaderTitle'>
@@ -134,7 +135,7 @@ export function mergePersonnelByNrp(
   return order.map((key) => byNrp.get(key)!);
 }
 
-export const DEFAULT_STAMP_IMAGE_URL = '/assets/aistudio/NEW_STAMPLE__2__a18bbd20.png';
+export const DEFAULT_STAMP_IMAGE_URL = resolvePublicAsset('assets/aistudio/NEW_STAMPLE__2__a18bbd20.png');
 
 export const DEFAULT_STAMP_CONFIG: StampSignatureConfig = {
   stampImageDataUrl: DEFAULT_STAMP_IMAGE_URL,

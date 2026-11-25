@@ -39,6 +39,7 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { RengiatView } from './components/RengiatView';
 import { ThemeToggleButton } from './components/ThemeToggleButton';
 import { useThemeMode } from './utils/themeMode';
+import { resolvePublicAsset } from './utils/publicAsset';
 import {
   applyExtendedOperationalModules,
   CURRENT_APP_DATA_VERSION,
@@ -1003,7 +1004,7 @@ export default function App() {
       <div className="shrink-0 flex items-center justify-between px-4 pt-4 pb-3 border-b border-[#e3dbcc]/70 dark:border-[#2c241b]">
         <div className="flex items-center gap-2.5 min-w-0">
           <img
-            src="/assets/aistudio/Logo_Tri_Brata__1___1__7bf85ea6.png"
+            src={resolvePublicAsset('assets/aistudio/Logo_Tri_Brata__1___1__7bf85ea6.png')}
             alt="Logo Tribrata Polri"
             className="w-7 h-7 object-contain shrink-0 select-none"
             draggable={false}
@@ -1386,7 +1387,7 @@ export default function App() {
             </button>
 
             <img
-              src="/assets/aistudio/Logo_Tri_Brata__1___1__7bf85ea6.png"
+              src={resolvePublicAsset('assets/aistudio/Logo_Tri_Brata__1___1__7bf85ea6.png')}
               alt="Logo Tribrata Polri"
               className="w-8 h-8 object-contain shrink-0 select-none"
               draggable={false}

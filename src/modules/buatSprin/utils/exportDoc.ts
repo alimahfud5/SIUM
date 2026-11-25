@@ -31,6 +31,7 @@ import {
 } from '../data/defaultData';
 import { SprinDocument, StampSignatureConfig } from '../types/sprin';
 import { saveExportFile } from './saveExportFile';
+import { resolvePublicAsset } from '../../../utils/publicAsset';
 
 const FONT_FAMILY = 'Arial';
 const FONT_SIZE_12PT = 24; // 24 half-points = 12pt
@@ -540,7 +541,9 @@ export async function exportSprinToWord(
   doc: SprinDocument,
   autoCatchword?: string
 ): Promise<void> {
-  const tribrataBytes = await fetchPngBytes('/assets/aistudio/tb__1__e5e5aec3.png');
+  const tribrataBytes = await fetchPngBytes(
+    resolvePublicAsset('assets/aistudio/tb__1__e5e5aec3.png')
+  );
   const effectiveCatchword = (doc.kataSambung || '').trim() || (autoCatchword || '').trim();
 
   const stampCfg: StampSignatureConfig = {
@@ -564,7 +567,9 @@ export async function exportSprinToWord(
   } | null = null;
 
   if (doc.showStampAndSignature) {
-    const stampSource = stampCfg.stampImageDataUrl || DEFAULT_STAMP_IMAGE_URL;
+    const stampSource = resolvePublicAsset(
+      stampCfg.stampImageDataUrl || DEFAULT_STAMP_IMAGE_URL
+    );
     let rasterStamp = await rasterizeImageUrlToPng(
       stampSource,
       Boolean(stampCfg.stampMultiplyBlend)
