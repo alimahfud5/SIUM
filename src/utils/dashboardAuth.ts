@@ -1,3 +1,6 @@
+import { INITIAL_PERSONNEL } from '../data/polriOktober2026';
+import { Personnel } from '../types/polriRoster';
+
 export type UserRole = 'admin' | 'user';
 
 export interface DashboardUserSession {
@@ -36,10 +39,93 @@ const LEGACY_AUTH_CONFIG_KEY = 'piket_dashboard_auth_v1';
 const ACCOUNTS_STORAGE_KEY = 'piket_offline_accounts_v2';
 const SESSION_STORAGE_KEY = 'piket_dashboard_session_v2';
 const LEGACY_SESSION_KEY = 'piket_dashboard_session_v1';
+const SEED_ACCOUNTS_20261124_KEY = 'piket_seed_accounts_20261124_v1';
+const ROSTER_STORAGE_KEY = 'kuat_pers_berkelanjutan_v5';
+
+export const PROTECTED_AUTH_STORAGE_KEYS = [
+  LEGACY_AUTH_CONFIG_KEY,
+  ACCOUNTS_STORAGE_KEY,
+  SESSION_STORAGE_KEY,
+  LEGACY_SESSION_KEY,
+  SEED_ACCOUNTS_20261124_KEY,
+] as const;
+
+export interface AuthStorageSnapshot {
+  local: Record<string, string | null>;
+  session: Record<string, string | null>;
+}
+
+export function snapshotProtectedAuthStorage(): AuthStorageSnapshot {
+  const local: Record<string, string | null> = {};
+  const session: Record<string, string | null> = {};
+  for (const key of PROTECTED_AUTH_STORAGE_KEYS) {
+    try {
+      local[key] = localStorage.getItem(key);
+    } catch {
+      local[key] = null;
+    }
+    try {
+      session[key] = sessionStorage.getItem(key);
+    } catch {
+      session[key] = null;
+    }
+  }
+  return { local, session };
+}
+
+export function restoreProtectedAuthStorageIfModified(
+  snapshot: AuthStorageSnapshot
+): void {
+  for (const key of PROTECTED_AUTH_STORAGE_KEYS) {
+    try {
+      const expectedLocal = snapshot.local[key];
+      const currentLocal = localStorage.getItem(key);
+      if (currentLocal !== expectedLocal) {
+        if (expectedLocal === null) {
+          localStorage.removeItem(key);
+        } else {
+          localStorage.setItem(key, expectedLocal);
+        }
+      }
+    } catch {
+      // Abaikan error storage
+    }
+    try {
+      const expectedSession = snapshot.session[key];
+      const currentSession = sessionStorage.getItem(key);
+      if (currentSession !== expectedSession) {
+        if (expectedSession === null) {
+          sessionStorage.removeItem(key);
+        } else {
+          sessionStorage.setItem(key, expectedSession);
+        }
+      }
+    } catch {
+      // Abaikan error storage
+    }
+  }
+}
+
+export interface ProtectedAccountsSummary {
+  total: number;
+  adminCount: number;
+  userCount: number;
+}
+
+export async function getProtectedAccountsSummary(): Promise<ProtectedAccountsSummary> {
+  const list = await getLocalAccountDirectory();
+  const adminCount = list.filter((a) => a.role === 'admin').length;
+  const userCount = list.filter((a) => a.role === 'user').length;
+  return {
+    total: list.length,
+    adminCount,
+    userCount,
+  };
+}
 
 export const PRIMARY_ADMIN_ID = 'acc_primary_admin';
 export const DEFAULT_LOGIN_USERNAME = 'admin';
-export const DEFAULT_LOGIN_PASSWORD = 'piket2026';
+export const DEFAULT_LOGIN_PASSWORD = 'admin123';
 
 export function normalizeUsername(username: string): string {
   return username.trim().toLowerCase();
@@ -115,6 +201,192 @@ async function createDefaultPrimaryAdmin(): Promise<StoredAccountRecord> {
   };
 }
 
+function getStoredOrInitialPersonnelList(): Personnel[] {
+  try {
+    const raw = localStorage.getItem(ROSTER_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as {
+        personnel?: Personnel[];
+        scheduleRevisions?: { personnel?: Personnel[] }[];
+      };
+      if (
+        Array.isArray(parsed.scheduleRevisions) &&
+        parsed.scheduleRevisions.length > 0
+      ) {
+        const latest =
+          parsed.scheduleRevisions[parsed.scheduleRevisions.length - 1];
+        if (Array.isArray(latest?.personnel) && latest.personnel.length > 0) {
+          return latest.personnel;
+        }
+      }
+      if (Array.isArray(parsed.personnel) && parsed.personnel.length > 0) {
+        return parsed.personnel;
+      }
+    }
+  } catch {
+    // Gunakan data awal jika penyimpanan belum tersedia
+  }
+  return INITIAL_PERSONNEL;
+}
+
+function buildPersonnelDisplayName(person: Personnel): string {
+  const combined = `${person.pangkat || ''} ${person.name || ''}`
+    .replace(/\s+/g, ' ')
+    .trim();
+  return (combined || person.name || person.nrp).slice(0, 100);
+}
+
+function buildPersonnelRoleLabel(person: Personnel): string {
+  const jabatan = (person.jabatan || '').replace(/\s+/g, ' ').trim();
+  return (jabatan || 'User Operasional').slice(0, 80);
+}
+
+async function createPersonnelAccountRecords(
+  personnelList: Personnel[],
+  existingUsernames: Set<string>,
+  existingIds: Set<string>
+): Promise<StoredAccountRecord[]> {
+  const nowIso = new Date().toISOString();
+  const pending: {
+    id: string;
+    username: string;
+    rawPassword: string;
+    displayName: string;
+    roleLabel: string;
+  }[] = [];
+
+  for (const person of personnelList) {
+    const rawNrp = (person.nrp || '').trim();
+    const cleanUsername = normalizeUsername(rawNrp);
+    if (cleanUsername.length < 3 || !/^[a-z0-9._-]+$/.test(cleanUsername)) {
+      continue;
+    }
+    if (existingUsernames.has(cleanUsername)) {
+      continue;
+    }
+    existingUsernames.add(cleanUsername);
+
+    let candidateId = `acc_pers_${person.id || cleanUsername}`;
+    while (existingIds.has(candidateId)) {
+      candidateId = `${candidateId}_${Math.random().toString(36).slice(2, 5)}`;
+    }
+    existingIds.add(candidateId);
+
+    pending.push({
+      id: candidateId,
+      username: cleanUsername,
+      rawPassword: rawNrp,
+      displayName: buildPersonnelDisplayName(person),
+      roleLabel: buildPersonnelRoleLabel(person),
+    });
+  }
+
+  return Promise.all(
+    pending.map(async (item) => ({
+      id: item.id,
+      username: item.username,
+      displayName: item.displayName,
+      role: 'user' as const,
+      roleLabel: item.roleLabel,
+      active: true,
+      isPrimaryAdmin: false,
+      isDefaultPassword: false,
+      passwordHash: await hashPassword(item.rawPassword),
+      updatedAtIso: nowIso,
+    }))
+  );
+}
+
+async function applyInitialPersonnelAccountSeedIfNeeded(
+  dir: StoredAccountsDirectory
+): Promise<StoredAccountsDirectory> {
+  let alreadySeeded = false;
+  try {
+    alreadySeeded = localStorage.getItem(SEED_ACCOUNTS_20261124_KEY) === 'done';
+  } catch {
+    alreadySeeded = false;
+  }
+  if (alreadySeeded) {
+    return dir;
+  }
+
+  let changed = false;
+  const nextAccounts = [...dir.accounts];
+  const nowIso = new Date().toISOString();
+
+  // Pastikan akun admin (admin / admin123) tersedia tanpa menimpa password custom yang sudah diubah pengguna
+  const primaryIdx = nextAccounts.findIndex(
+    (a) => a.isPrimaryAdmin || a.id === PRIMARY_ADMIN_ID
+  );
+  const existingAdminIdx = nextAccounts.findIndex(
+    (a) => normalizeUsername(a.username) === DEFAULT_LOGIN_USERNAME
+  );
+
+  if (existingAdminIdx === -1) {
+    const extraAdmin: StoredAccountRecord = {
+      id:
+        primaryIdx === -1
+          ? PRIMARY_ADMIN_ID
+          : `acc_admin_${Date.now().toString(36)}`,
+      username: DEFAULT_LOGIN_USERNAME,
+      displayName: 'Admin Utama SIUM',
+      role: 'admin',
+      roleLabel: 'Administrator Utama',
+      active: true,
+      isPrimaryAdmin: primaryIdx === -1,
+      isDefaultPassword: primaryIdx === -1,
+      passwordHash: await hashPassword(DEFAULT_LOGIN_PASSWORD),
+      updatedAtIso: nowIso,
+    };
+    nextAccounts.unshift(extraAdmin);
+    changed = true;
+  } else {
+    const adminAcc = nextAccounts[existingAdminIdx];
+    if (adminAcc.isDefaultPassword) {
+      nextAccounts[existingAdminIdx] = {
+        ...adminAcc,
+        role: 'admin',
+        active: true,
+        passwordHash: await hashPassword(DEFAULT_LOGIN_PASSWORD),
+        updatedAtIso: nowIso,
+      };
+      changed = true;
+    }
+  }
+
+  const existingUsernames = new Set(
+    nextAccounts.map((a) => normalizeUsername(a.username))
+  );
+  const existingIds = new Set(nextAccounts.map((a) => a.id));
+  const personnelList = getStoredOrInitialPersonnelList();
+  const newPersonnelAccounts = await createPersonnelAccountRecords(
+    personnelList,
+    existingUsernames,
+    existingIds
+  );
+
+  if (newPersonnelAccounts.length > 0) {
+    nextAccounts.push(...newPersonnelAccounts);
+    changed = true;
+  }
+
+  const resultDir: StoredAccountsDirectory = changed
+    ? { version: 2, accounts: nextAccounts }
+    : dir;
+
+  if (changed) {
+    saveDirectory(resultDir);
+  }
+
+  try {
+    localStorage.setItem(SEED_ACCOUNTS_20261124_KEY, 'done');
+  } catch {
+    // Abaikan error storage
+  }
+
+  return resultDir;
+}
+
 async function loadDirectory(): Promise<StoredAccountsDirectory> {
   try {
     const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
@@ -130,8 +402,16 @@ async function loadDirectory(): Promise<StoredAccountsDirectory> {
           (a) => a.isPrimaryAdmin || a.id === PRIMARY_ADMIN_ID
         );
         if (hasPrimary) {
-          return parsed;
+          return applyInitialPersonnelAccountSeedIfNeeded(parsed);
         }
+        // Preserve all existing stored user/admin accounts even if primary entry was missing
+        const primary = await createDefaultPrimaryAdmin();
+        const repaired: StoredAccountsDirectory = {
+          version: 2,
+          accounts: [primary, ...parsed.accounts],
+        };
+        saveDirectory(repaired);
+        return applyInitialPersonnelAccountSeedIfNeeded(repaired);
       }
     }
 
@@ -165,7 +445,7 @@ async function loadDirectory(): Promise<StoredAccountsDirectory> {
           ],
         };
         saveDirectory(migrated);
-        return migrated;
+        return applyInitialPersonnelAccountSeedIfNeeded(migrated);
       }
     }
   } catch {
@@ -173,11 +453,21 @@ async function loadDirectory(): Promise<StoredAccountsDirectory> {
   }
 
   const primary = await createDefaultPrimaryAdmin();
+  const personnelAccounts = await createPersonnelAccountRecords(
+    getStoredOrInitialPersonnelList(),
+    new Set([normalizeUsername(primary.username)]),
+    new Set([primary.id])
+  );
   const initialDir: StoredAccountsDirectory = {
     version: 2,
-    accounts: [primary],
+    accounts: [primary, ...personnelAccounts],
   };
   saveDirectory(initialDir);
+  try {
+    localStorage.setItem(SEED_ACCOUNTS_20261124_KEY, 'done');
+  } catch {
+    // Abaikan error storage
+  }
   return initialDir;
 }
 
@@ -527,8 +817,8 @@ export async function upsertLocalAccountMember(params: {
   if (!params.password || params.password.length < 6) {
     throw new Error('Kata sandi akun baru minimal 6 karakter.');
   }
-  if (dir.accounts.length >= 200) {
-    throw new Error('Batas maksimum 200 akun lokal telah tercapai.');
+  if (dir.accounts.length >= 500) {
+    throw new Error('Batas maksimum 500 akun lokal telah tercapai.');
   }
 
   const newRecord: StoredAccountRecord = {
@@ -549,6 +839,39 @@ export async function upsertLocalAccountMember(params: {
     throw new Error('Gagal menyimpan akun ke penyimpanan lokal.');
   }
   return toPublicEntry(newRecord);
+}
+
+export async function syncPersonnelLocalAccounts(
+  personnelList: Personnel[]
+): Promise<{ addedCount: number; skippedCount: number }> {
+  const dir = await loadDirectory();
+  const existingUsernames = new Set(
+    dir.accounts.map((a) => normalizeUsername(a.username))
+  );
+  const existingIds = new Set(dir.accounts.map((a) => a.id));
+
+  const newRecords = await createPersonnelAccountRecords(
+    personnelList,
+    existingUsernames,
+    existingIds
+  );
+
+  if (newRecords.length > 0) {
+    dir.accounts.push(...newRecords);
+    if (!saveDirectory(dir)) {
+      throw new Error('Gagal menyimpan akun personel ke penyimpanan lokal.');
+    }
+  }
+
+  const validPersonnelCount = personnelList.filter((p) => {
+    const clean = normalizeUsername(p.nrp || '');
+    return clean.length >= 3 && /^[a-z0-9._-]+$/.test(clean);
+  }).length;
+
+  return {
+    addedCount: newRecords.length,
+    skippedCount: Math.max(0, validPersonnelCount - newRecords.length),
+  };
 }
 
 export async function deleteLocalAccountMember(id: string): Promise<void> {

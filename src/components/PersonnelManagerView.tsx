@@ -46,6 +46,7 @@ import {
   getOrderedUnitMeta,
   shiftPersonPhase,
 } from '../utils/continuousRoster';
+import { buildOperationalUpdatePayload } from '../utils/appDataUpdate';
 import {
   buildPersonnelExcelBytes,
   inferCycleForUnit,
@@ -594,19 +595,15 @@ export function PersonnelManagerView({
   };
 
   // Backup & Restore handlers
-  const buildBackupPayload = (): RosterBackupPayload => ({
-    app: 'kuat-pers-jadwal-piket',
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    data: {
+  const buildBackupPayload = (): RosterBackupPayload =>
+    buildOperationalUpdatePayload({
       header,
       personnel,
       unitOrder,
       pawasAnchor,
       overrides,
       scheduleRevisions,
-    },
-  });
+    });
 
   const handleDownloadBackupJson = () => {
     const payload = buildBackupPayload();

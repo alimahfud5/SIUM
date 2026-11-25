@@ -134,10 +134,20 @@ export interface ScheduleRevision {
   pawasAnchor: PawasAnchor;
 }
 
+export interface RosterBackupModules {
+  rengiat?: unknown;
+  pam?: unknown;
+  buatSprinActive?: unknown;
+  buatSprinArchive?: unknown;
+  dailyWaPhone?: string | null;
+}
+
 export interface RosterBackupPayload {
   app: 'kuat-pers-jadwal-piket';
   version: number;
   exportedAt: string;
+  dataVersion?: string;
+  excludesAuthAccounts?: true;
   data: {
     header: RosterOrgHeader;
     personnel: Personnel[];
@@ -145,6 +155,7 @@ export interface RosterBackupPayload {
     pawasAnchor: PawasAnchor;
     overrides: ShiftOverrides;
     scheduleRevisions?: ScheduleRevision[];
+    modules?: RosterBackupModules;
   };
 }
 

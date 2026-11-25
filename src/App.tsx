@@ -14,13 +14,18 @@ import {
   LogOut,
   Menu,
   Printer,
+  RefreshCw,
   RotateCcw,
+  ShieldCheck,
   UserCheck,
   Users,
   X,
 } from 'lucide-react';
 import { AccountSettingsModal } from './components/AccountSettingsModal';
-import { BackupRestoreView } from './components/BackupRestoreView';
+import {
+  AppReleaseUpdateOptions,
+  BackupRestoreView,
+} from './components/BackupRestoreView';
 import { BuatSprinApp } from './modules/buatSprin/BuatSprinApp';
 import { DailyDutyView } from './components/DailyDutyView';
 import { DaftarPersPamView } from './components/DaftarPersPamView';
@@ -35,9 +40,19 @@ import { RengiatView } from './components/RengiatView';
 import { ThemeToggleButton } from './components/ThemeToggleButton';
 import { useThemeMode } from './utils/themeMode';
 import {
+  applyExtendedOperationalModules,
+  CURRENT_APP_DATA_VERSION,
+  detectPendingAppDataUpdate,
+  dismissPendingAppDataUpdate,
+  markCurrentDataVersionApplied,
+  resetExtendedOperationalModulesToDefaults,
+} from './utils/appDataUpdate';
+import {
   DashboardUserSession,
   getActiveSession,
   logoutSession,
+  restoreProtectedAuthStorageIfModified,
+  snapshotProtectedAuthStorage,
 } from './utils/dashboardAuth';
 import {
   DEFAULT_ORG_HEADER,
@@ -417,6 +432,10 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [copiedRecently, setCopiedRecently] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [hasPendingDataUpdate, setHasPendingDataUpdate] = useState<boolean>(() =>
+    detectPendingAppDataUpdate()
+  );
+  const [dataUpdateRevision, setDataUpdateRevision] = useState<number>(0);
 
   useEffect(() => {
     try {
@@ -813,51 +832,110 @@ export default function App() {
 
   const handleResetToBaseline = () => {
     if (!isAdmin) return;
-    setHeader(DEFAULT_ORG_HEADER);
-    setUnitOrder(DEFAULT_UNIT_ORDER);
-    setScheduleRevisions((prevRevs) =>
-      upsertFutureScheduleRevision(
-        prevRevs,
-        tomorrowDateKey,
-        INITIAL_PERSONNEL,
-        DEFAULT_PAWAS_ANCHOR
-      )
-    );
-    setOverrides((prev) => {
-      const next: ShiftOverrides = {};
-      for (const [k, v] of Object.entries(prev)) {
-        const sepIdx = k.lastIndexOf('__');
-        const dateKey = sepIdx >= 0 ? k.slice(sepIdx + 2) : '';
-        if (dateKey && dateKey <= todayWib.dateKey) {
-          next[k] = v;
+    const authSnapshot = snapshotProtectedAuthStorage();
+    try {
+      setHeader(DEFAULT_ORG_HEADER);
+      setUnitOrder(DEFAULT_UNIT_ORDER);
+      setScheduleRevisions((prevRevs) =>
+        upsertFutureScheduleRevision(
+          prevRevs,
+          tomorrowDateKey,
+          INITIAL_PERSONNEL,
+          DEFAULT_PAWAS_ANCHOR
+        )
+      );
+      setOverrides((prev) => {
+        const next: ShiftOverrides = {};
+        for (const [k, v] of Object.entries(prev)) {
+          const sepIdx = k.lastIndexOf('__');
+          const dateKey = sepIdx >= 0 ? k.slice(sepIdx + 2) : '';
+          if (dateKey && dateKey <= todayWib.dateKey) {
+            next[k] = v;
+          }
         }
-      }
-      return next;
-    });
-    showNotice(
-      `Jadwal piket mulai ${formatIndonesianDateFromKey(tomorrowDateKey)} dikembalikan ke data standar awal; riwayat s.d. hari ini tetap terjaga.`
-    );
+        return next;
+      });
+      markCurrentDataVersionApplied();
+      setHasPendingDataUpdate(false);
+      showNotice(
+        `Jadwal piket mulai ${formatIndonesianDateFromKey(tomorrowDateKey)} dikembalikan ke data standar awal; akun & password Admin/Pengguna tetap aman.`
+      );
+    } finally {
+      restoreProtectedAuthStorageIfModified(authSnapshot);
+    }
   };
 
   const handleRestoreBackup = (data: RosterBackupPayload['data']) => {
     if (!isAdmin) return;
-    setHeader(data.header);
-    setUnitOrder(
-      data.unitOrder && data.unitOrder.length > 0
-        ? data.unitOrder
-        : DEFAULT_UNIT_ORDER
-    );
-    setScheduleRevisions(
-      normalizeScheduleRevisions(
-        data.scheduleRevisions,
-        data.personnel,
-        data.pawasAnchor
-      )
-    );
-    setOverrides(data.overrides);
-    showNotice(
-      `Backup berhasil dipulihkan (${data.personnel.length} personel).`
-    );
+    const authSnapshot = snapshotProtectedAuthStorage();
+    try {
+      setHeader(data.header);
+      setUnitOrder(
+        data.unitOrder && data.unitOrder.length > 0
+          ? data.unitOrder
+          : DEFAULT_UNIT_ORDER
+      );
+      setScheduleRevisions(
+        normalizeScheduleRevisions(
+          data.scheduleRevisions,
+          data.personnel,
+          data.pawasAnchor
+        )
+      );
+      setOverrides(data.overrides);
+      if (data.modules) {
+        applyExtendedOperationalModules(data.modules);
+        setDataUpdateRevision((n) => n + 1);
+      }
+      markCurrentDataVersionApplied();
+      setHasPendingDataUpdate(false);
+      showNotice(
+        `Update data berhasil diterapkan (${data.personnel.length} personel). User & password Admin/Pengguna yang tersimpan tidak ikut diupdate.`
+      );
+    } finally {
+      restoreProtectedAuthStorageIfModified(authSnapshot);
+    }
+  };
+
+  const handleApplyAppReleaseUpdate = (options: AppReleaseUpdateOptions) => {
+    if (!isAdmin) return;
+    const authSnapshot = snapshotProtectedAuthStorage();
+    try {
+      setHeader(DEFAULT_ORG_HEADER);
+      setUnitOrder(DEFAULT_UNIT_ORDER);
+      setScheduleRevisions((prevRevs) =>
+        upsertFutureScheduleRevision(
+          prevRevs,
+          tomorrowDateKey,
+          INITIAL_PERSONNEL,
+          DEFAULT_PAWAS_ANCHOR
+        )
+      );
+      if (!options.keepOverrides) {
+        setOverrides((prev) => {
+          const next: ShiftOverrides = {};
+          for (const [k, v] of Object.entries(prev)) {
+            const sepIdx = k.lastIndexOf('__');
+            const dateKey = sepIdx >= 0 ? k.slice(sepIdx + 2) : '';
+            if (dateKey && dateKey <= todayWib.dateKey) {
+              next[k] = v;
+            }
+          }
+          return next;
+        });
+      }
+      if (options.resetModuleDrafts) {
+        resetExtendedOperationalModulesToDefaults();
+      }
+      markCurrentDataVersionApplied();
+      setHasPendingDataUpdate(false);
+      setDataUpdateRevision((n) => n + 1);
+      showNotice(
+        `Update data versi ${CURRENT_APP_DATA_VERSION} berhasil diterapkan. User & password Admin/Pengguna yang tersimpan tidak ikut diupdate.`
+      );
+    } finally {
+      restoreProtectedAuthStorageIfModified(authSnapshot);
+    }
   };
 
   const handleCopyText = async (text: string) => {
@@ -1045,6 +1123,7 @@ export default function App() {
     return (
       <>
         <BuatSprinApp
+          key={dataUpdateRevision}
           mainPersonnel={personnel}
           unitOrder={unitOrder}
           pawasAnchor={pawasAnchor}
@@ -1195,6 +1274,7 @@ export default function App() {
 
           {activeTab === 'rengiat' && (
             <RengiatView
+              key={dataUpdateRevision}
               header={header}
               todayDateKey={todayWib.dateKey}
               personnel={personnel}
@@ -1206,6 +1286,7 @@ export default function App() {
 
           {activeTab === 'pam' && (
             <DaftarPersPamView
+              key={dataUpdateRevision}
               header={header}
               todayDateKey={todayWib.dateKey}
               personnel={personnel}
@@ -1272,11 +1353,13 @@ export default function App() {
               overrides={overrides}
               scheduleRevisions={scheduleRevisions}
               lastBackupAt={lastBackupAt}
+              hasPendingDataUpdate={hasPendingDataUpdate}
               onMarkBackupDone={(ts) => {
                 setLastBackupAt(ts);
-                showNotice('Cadangan data (backup) berhasil dibuat.');
+                showNotice('Paket update data / cadangan berhasil dibuat.');
               }}
               onRestoreBackup={handleRestoreBackup}
+              onApplyAppReleaseUpdate={handleApplyAppReleaseUpdate}
               onResetBaseline={handleResetToBaseline}
             />
           )}
@@ -1444,6 +1527,44 @@ export default function App() {
         {/* Main Viewport */}
         <main className="flex-1 min-w-0 px-2 sm:px-5 lg:px-7 py-3.5 sm:py-5 print:p-0">
           <div className="max-w-[1440px] mx-auto space-y-4">
+            {isAdmin && hasPendingDataUpdate && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50/90 dark:border-[#8d6b38] dark:bg-[#241d12] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
+                <div className="flex items-start gap-2.5 text-xs">
+                  <ShieldCheck className="w-4 h-4 text-[#9a6b24] dark:text-[#dfb365] shrink-0 mt-0.5" />
+                  <div className="space-y-0.5 text-amber-950 dark:text-[#f3ede4]">
+                    <div className="font-bold">
+                      Update Data Aplikasi Tersedia ({CURRENT_APP_DATA_VERSION})
+                    </div>
+                    <div className="text-amber-900/90 dark:text-[#cbb899]">
+                      Terapkan update data terbaru tanpa mengubah user dan
+                      password Admin maupun Pengguna yang sudah tersimpan di
+                      aplikasi ini.
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      dismissPendingAppDataUpdate();
+                      setHasPendingDataUpdate(false);
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium text-amber-900 bg-white border border-amber-300 hover:bg-amber-100/70 dark:text-[#d6cec2] dark:bg-[#1a1611] dark:border-[#3a2f20] rounded-lg"
+                  >
+                    Nanti
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('backup')}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-[#a6783e] hover:bg-[#b88647] rounded-lg whitespace-nowrap"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Terapkan Update Data</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {notice && (
               <div
                 role="status"
@@ -1483,6 +1604,7 @@ export default function App() {
       {accountModalOpen && (
         <AccountSettingsModal
           session={session}
+          personnel={personnel}
           onSessionUpdated={(nextSession) => setSession(nextSession)}
           onClose={() => setAccountModalOpen(false)}
           onLogout={handleLogout}

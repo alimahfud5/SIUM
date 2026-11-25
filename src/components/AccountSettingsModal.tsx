@@ -6,18 +6,22 @@ import {
   Edit3,
   KeyRound,
   LogOut,
+  RefreshCw,
+  Search,
   ShieldCheck,
   Trash2,
   UserPlus,
   Users,
   X,
 } from 'lucide-react';
+import { Personnel } from '../types/polriRoster';
 import {
   DashboardUserSession,
   deleteLocalAccountMember,
   getLocalAccountDirectory,
   LocalAccountEntry,
   PRIMARY_ADMIN_ID,
+  syncPersonnelLocalAccounts,
   updateOwnProfileAndPassword,
   upsertLocalAccountMember,
   UserRole,
@@ -25,6 +29,7 @@ import {
 
 interface AccountSettingsModalProps {
   session: DashboardUserSession;
+  personnel?: Personnel[];
   onSessionUpdated: (nextSession: DashboardUserSession) => void;
   onClose: () => void;
   onLogout: () => void;
@@ -33,6 +38,7 @@ interface AccountSettingsModalProps {
 
 export function AccountSettingsModal({
   session,
+  personnel = [],
   onSessionUpdated,
   onClose,
   onLogout,
@@ -62,6 +68,8 @@ export function AccountSettingsModal({
   const [passwordInput, setPasswordInput] = useState('');
   const [activeInput, setActiveInput] = useState(true);
   const [savingMember, setSavingMember] = useState(false);
+  const [syncingPersonnel, setSyncingPersonnel] = useState(false);
+  const [accountSearch, setAccountSearch] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -266,6 +274,44 @@ export function AccountSettingsModal({
       setSavingMember(false);
     }
   };
+
+  const handleSyncPersonnelAccounts = async () => {
+    if (!isAdmin || personnel.length === 0) return;
+    setSyncingPersonnel(true);
+    setDirError(null);
+    try {
+      const res = await syncPersonnelLocalAccounts(personnel);
+      await refreshDirectory();
+      if (res.addedCount > 0) {
+        onNotice(
+          `${res.addedCount} akun User baru dari daftar personel (username & sandi sesuai NRP) berhasil ditambahkan.`
+        );
+      } else {
+        onNotice(
+          'Semua NRP di daftar personel sudah memiliki akun lokal (akun yang sudah ada tidak diubah).'
+        );
+      }
+    } catch (err) {
+      setDirError(
+        err instanceof Error
+          ? err.message
+          : 'Gagal menyinkronkan akun dari daftar personel.'
+      );
+    } finally {
+      setSyncingPersonnel(false);
+    }
+  };
+
+  const normalizedQuery = accountSearch.trim().toLowerCase();
+  const filteredAccounts = normalizedQuery
+    ? accounts.filter(
+        (a) =>
+          a.username.toLowerCase().includes(normalizedQuery) ||
+          a.displayName.toLowerCase().includes(normalizedQuery) ||
+          a.roleLabel.toLowerCase().includes(normalizedQuery) ||
+          a.role.toLowerCase().includes(normalizedQuery)
+      )
+    : accounts;
 
   return (
     <div
@@ -668,13 +714,46 @@ export function AccountSettingsModal({
 
               {/* Registered Local Accounts List */}
               <div className="rounded-xl border border-[#e3dbcc] bg-[#faf8f4] dark:border-[#352b1f] dark:bg-[#14110d] overflow-hidden">
-                <div className="px-4 py-3 border-b border-[#e3dbcc] dark:border-[#2c241b] flex items-center justify-between gap-2">
-                  <div className="text-xs font-bold uppercase tracking-wider text-[#9a6b24] dark:text-[#dfb365]">
-                    Daftar Akun Perangkat ({accounts.length})
+                <div className="px-4 py-3 border-b border-[#e3dbcc] dark:border-[#2c241b] space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#9a6b24] dark:text-[#dfb365]">
+                        Daftar Akun Perangkat ({accounts.length})
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-[#9b8f80]">
+                        Tersimpan lokal di perangkat (Mode Offline)
+                      </div>
+                    </div>
+
+                    {personnel.length > 0 && (
+                      <button
+                        type="button"
+                        disabled={syncingPersonnel || savingMember}
+                        onClick={handleSyncPersonnelAccounts}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold bg-white border border-[#ddd4c4] hover:border-[#b37b24] text-slate-700 dark:bg-[#1f1912] dark:border-[#3a2f20] dark:hover:border-[#8d6b38] dark:text-[#e6dfd3] disabled:opacity-60 rounded-lg transition-colors whitespace-nowrap"
+                        title="Tambahkan akun User yang belum terdaftar dari Daftar Personel (NRP sebagai username & password)"
+                      >
+                        <RefreshCw
+                          className={`w-3 h-3 text-[#9a6b24] dark:text-[#dfb365] ${
+                            syncingPersonnel ? 'animate-spin' : ''
+                          }`}
+                        />
+                        <span>Sinkronkan Akun Personel</span>
+                      </button>
+                    )}
                   </div>
-                  <span className="text-[11px] text-slate-500 dark:text-[#9b8f80]">
-                    Tersimpan lokal di perangkat (Mode Offline)
-                  </span>
+
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 dark:text-[#7e7264] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={accountSearch}
+                      onChange={(e) => setAccountSearch(e.target.value)}
+                      placeholder="Cari username / NRP, nama tampilan, atau jabatan..."
+                      aria-label="Cari akun perangkat"
+                      className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 dark:bg-[#0e0c09] dark:border-[#352b1f] dark:text-[#f3ede4] dark:placeholder:text-[#6e6456] rounded-lg focus:outline-none focus:border-[#c99645]"
+                    />
+                  </div>
                 </div>
 
                 {dirError && (
@@ -687,9 +766,13 @@ export function AccountSettingsModal({
                   <div className="p-5 text-center text-xs text-slate-500 dark:text-[#9b8f80]">
                     Memuat daftar akun...
                   </div>
+                ) : filteredAccounts.length === 0 ? (
+                  <div className="p-5 text-center text-xs text-slate-500 dark:text-[#9b8f80]">
+                    Tidak ada akun yang cocok dengan pencarian &ldquo;{accountSearch}&rdquo;.
+                  </div>
                 ) : (
-                  <div className="divide-y divide-[#e3dbcc] dark:divide-[#262017]">
-                    {accounts.map((entry) => {
+                  <div className="divide-y divide-[#e3dbcc] dark:divide-[#262017] max-h-96 overflow-y-auto overscroll-contain">
+                    {filteredAccounts.map((entry) => {
                       const isConfirmDel = confirmDeleteId === entry.id;
 
                       return (

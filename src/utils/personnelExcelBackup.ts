@@ -1,20 +1,14 @@
 import * as XLSX from 'xlsx-js-style';
-import {
-  DEFAULT_ORG_HEADER,
-  DEFAULT_PAWAS_ANCHOR,
-  UNIT_META,
-} from '../data/polriOktober2026';
+import { UNIT_META } from '../data/polriOktober2026';
 import {
   CycleType,
-  PawasAnchor,
   Personnel,
   RosterBackupPayload,
   RosterOrgHeader,
-  ScheduleRevision,
-  ShiftOverrides,
   UnitKey,
 } from '../types/polriRoster';
-import { DEFAULT_UNIT_ORDER, getOrderedUnitMeta } from './continuousRoster';
+import { parseDataUpdateInput } from './appDataUpdate';
+import { getOrderedUnitMeta } from './continuousRoster';
 
 export function inferCycleForUnit(unit: UnitKey): {
   cycleType: CycleType;
@@ -554,73 +548,9 @@ export interface ParsedBackupPreview {
 }
 
 export function parseBackupJsonInput(rawText: string): ParsedBackupPreview {
-  const parsed = JSON.parse(rawText) as Record<string, unknown>;
-  if (!parsed || typeof parsed !== 'object') {
-    throw new Error('Format JSON tidak valid.');
-  }
-
-  const candidate =
-    parsed.data && typeof parsed.data === 'object'
-      ? (parsed.data as Record<string, unknown>)
-      : parsed;
-
-  if (!Array.isArray(candidate.personnel) || candidate.personnel.length === 0) {
-    throw new Error(
-      'Data personel tidak ditemukan atau kosong di file backup.'
-    );
-  }
-
-  const validPersonnel = candidate.personnel.every(
-    (item) =>
-      item &&
-      typeof item === 'object' &&
-      typeof (item as Personnel).id === 'string' &&
-      typeof (item as Personnel).name === 'string' &&
-      typeof (item as Personnel).unit === 'string'
-  );
-
-  if (!validPersonnel) {
-    throw new Error('Struktur data personel di dalam backup tidak valid.');
-  }
-
-  const headerObj =
-    candidate.header && typeof candidate.header === 'object'
-      ? {
-          ...DEFAULT_ORG_HEADER,
-          ...(candidate.header as Partial<RosterOrgHeader>),
-        }
-      : DEFAULT_ORG_HEADER;
-
-  const pawasObj =
-    candidate.pawasAnchor &&
-    typeof candidate.pawasAnchor === 'object' &&
-    typeof (candidate.pawasAnchor as PawasAnchor).dateKey === 'string'
-      ? (candidate.pawasAnchor as PawasAnchor)
-      : DEFAULT_PAWAS_ANCHOR;
-
-  const unitOrderArr = Array.isArray(candidate.unitOrder)
-    ? (candidate.unitOrder as UnitKey[])
-    : DEFAULT_UNIT_ORDER;
-
-  const overridesObj =
-    candidate.overrides && typeof candidate.overrides === 'object'
-      ? (candidate.overrides as ShiftOverrides)
-      : {};
-
-  const revisionsArr = Array.isArray(candidate.scheduleRevisions)
-    ? (candidate.scheduleRevisions as ScheduleRevision[])
-    : undefined;
-
+  const parsed = parseDataUpdateInput(rawText);
   return {
-    exportedAt:
-      typeof parsed.exportedAt === 'string' ? parsed.exportedAt : undefined,
-    data: {
-      header: headerObj,
-      personnel: candidate.personnel as Personnel[],
-      unitOrder: unitOrderArr,
-      pawasAnchor: pawasObj,
-      overrides: overridesObj,
-      scheduleRevisions: revisionsArr,
-    },
+    exportedAt: parsed.exportedAt,
+    data: parsed.data,
   };
 }

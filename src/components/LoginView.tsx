@@ -253,7 +253,7 @@ export function LoginView({
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Contoh: admin"
+              placeholder="Contoh: admin atau NRP personel"
               className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400 dark:bg-[#081224] dark:border-[#2a416b] dark:text-white dark:placeholder:text-slate-500 rounded-lg focus:outline-none focus:border-[#c99645]"
             />
           </div>
